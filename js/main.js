@@ -13,11 +13,21 @@
   const CURRENT_IMAGERY_URL =
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 
-  const satelliteLayer = L.tileLayer(CURRENT_IMAGERY_URL, {
+  // .fallback (not plain L.tileLayer) so that missing tiles — common in
+  // older/rural Wayback captures — fall back to a scaled-up tile from the
+  // nearest lower zoom level instead of leaving a blank gap.
+  const satelliteLayer = L.tileLayer.fallback(CURRENT_IMAGERY_URL, {
     attribution:
       "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics",
     maxZoom: 20,
   }).addTo(map);
+
+  let imageryHasFallbackTiles = false;
+  satelliteLayer.on("tilefallback", () => {
+    if (imageryHasFallbackTiles) return;
+    imageryHasFallbackTiles = true;
+    renderImageryLabel();
+  });
 
   // ---------------------------------------------------------------------
   // State
@@ -118,6 +128,21 @@
     entry.imageryRelease = nearestRelease(entry.date);
   }
 
+  let currentRelease = null;
+
+  function renderImageryLabel() {
+    if (!currentRelease) {
+      dom.imageryLabel.textContent = waybackReady ? "Imagery: current" : "Imagery: loading…";
+      return;
+    }
+    const base = visibleEntry
+      ? `Imagery: ${currentRelease.dateStr} (nearest capture to ${visibleEntry.date})`
+      : `Imagery: ${currentRelease.dateStr} (latest)`;
+    dom.imageryLabel.textContent = imageryHasFallbackTiles
+      ? `${base} — some tiles at lower resolution`
+      : base;
+  }
+
   function updateImageryLayer() {
     let release = null;
     if (visibleEntry && visibleEntry.imageryRelease) {
@@ -126,17 +151,16 @@
       release = waybackReleases[waybackReleases.length - 1]; // most recent = "current"
     }
 
+    currentRelease = release;
+    imageryHasFallbackTiles = false;
+
     if (!release) {
-      dom.imageryLabel.textContent = waybackReady
-        ? "Imagery: current"
-        : "Imagery: loading…";
+      renderImageryLabel();
       return;
     }
 
     satelliteLayer.setUrl(release.urlTemplate);
-    dom.imageryLabel.textContent = visibleEntry
-      ? `Imagery: ${release.dateStr} (nearest capture to ${visibleEntry.date})`
-      : `Imagery: ${release.dateStr} (latest)`;
+    renderImageryLabel();
   }
 
   fetchWaybackReleases()
