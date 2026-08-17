@@ -244,7 +244,11 @@
     placeholder.textContent = "Select a capture date…";
     select.appendChild(placeholder);
 
-    waybackReleases.forEach((release) => {
+    // waybackReleases stays sorted ascending (other code relies on that
+    // order) — reverse just for display, so the newest capture is at the
+    // top of the dropdown instead of buried at the bottom of a long list.
+    const displayOrder = waybackReleases.slice().reverse();
+    displayOrder.forEach((release) => {
       const opt = document.createElement("option");
       opt.value = release.dateStr;
       const alreadyUsed = dates.some((d) => d.date === release.dateStr);

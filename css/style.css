@@ -95,6 +95,18 @@ select:disabled {
   cursor: not-allowed;
 }
 
+/* The select's own background/color don't carry into its native option
+   popup (OS-rendered, defaults to black-on-white) — style options
+   explicitly so the dropdown list matches the rest of the dark UI. */
+select option {
+  background: #1b1e23;
+  color: var(--text);
+}
+
+select option:disabled {
+  color: var(--muted);
+}
+
 input[type="text"]:focus,
 input[type="date"]:focus,
 input[type="month"]:focus,
