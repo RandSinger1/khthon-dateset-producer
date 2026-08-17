@@ -74,6 +74,11 @@ containing:
   varies a lot by region. The nearest available capture is used, and the
   actual date is always shown, but it may be well off from the date you
   picked in sparsely-covered areas.
+- If the nearest capture is missing tiles at your current zoom (common for
+  older captures or rural/remote areas), those tiles fall back to a
+  scaled-up lower-zoom tile ([Leaflet.TileLayer.Fallback](https://github.com/ghybs/Leaflet.TileLayer.Fallback))
+  instead of leaving a blank gap. The imagery label notes "some tiles at
+  lower resolution" when this happens.
 - The release list is fetched live from Esri's config endpoint on page
   load. If that fetch fails (offline, endpoint unreachable), the app falls
   back to a single current-imagery layer and a status message says
