@@ -41,6 +41,137 @@ step) so it can be hosted directly on GitHub Pages.
   (`localStorage`) as a quick reference; the underlying data lives in each
   downloaded zip, not on any server.
 
+## Usage guide
+
+A full walkthrough of building and submitting one item, start to finish.
+Screenshots below were taken from a live run of the app.
+
+### 1. Open the app
+
+You land on a world view of the current Esri satellite basemap. The top bar
+has the item name and coordinate search fields; the right-hand side panel
+has the (empty) timeline, vertex controls, and previous-items history.
+
+![Initial app state — world satellite view, empty top bar and side panel](docs/images/01-initial-map.jpg)
+
+### 2. Name the item
+
+Give the item you're digitizing a short, unique name (e.g. `Site-014`) in
+the **Item name** field at top left. This becomes the slug used for the
+downloaded filename and is stored in `metadata.json` and every shapefile's
+attribute table.
+
+![Item name field filled in with "Site-014"](docs/images/02-item-name.jpg)
+
+### 3. Navigate to the site
+
+Type coordinates into **Go to coordinates** and click **Go** (or press
+Enter) to fly the map there. The box accepts decimal degrees
+(`48.8584, 2.2945`), degrees-decimal-minutes, or full DMS
+(`40°42'47"N 74°0'22"W`), with or without N/S/E/W hemisphere letters, in
+either order — it auto-detects which value is latitude vs. longitude.
+
+A confirmation toast in the bottom-left shows the coordinates it jumped to.
+
+![Coordinate search box filled in, with a "Jumped to" confirmation toast](docs/images/03-coordinate-search.jpg)
+
+### 4. Add a date and draw the polygon
+
+Pick a **month** in the timeline's date field (dates in this tool are
+month-precision, not day-precision) and click **Add date**. This:
+
+- Creates a new timeline entry, sorted chronologically among any others.
+- Snaps the basemap to the nearest available [Wayback](https://livingatlas.arcgis.com/wayback/)
+  historical imagery capture to that month, so you're drawing against
+  imagery from roughly the right time — the **Imagery** label at the top of
+  the side panel shows exactly which capture date was used.
+- Makes that date the "active" one — vertices you place next belong to it.
+
+![A "2024-06" date chip added to the timeline, imagery label showing the matched capture](docs/images/04-add-date.jpg)
+
+With a date active, **click anywhere on the satellite map** to drop a
+vertex. Keep clicking to build up the outline — the app draws a dashed line
+after 2 points and fills in a solid polygon once you have 3 or more.
+
+- **Right-click** a vertex to delete it.
+- **Undo last** removes the most recently placed vertex.
+- **Clear** removes all vertices for the active date.
+- The **Vertices** counter in the side panel tracks how many points the
+  active date currently has.
+
+![A 4-point polygon drawn over the site, vertex count showing 4](docs/images/05-draw-polygon.jpg)
+
+### 5. The timeline panel
+
+Each date gets its own chip showing the month, point count, and which
+imagery capture it matched to (chips turn green once a date has 3+ points
+and is ready to submit). Click a chip to make that date active and view its
+polygon; click the **✕** on a chip to remove that date entirely.
+
+![Timeline panel close-up: one date chip with 4 points, imagery match shown](docs/images/06-timeline-panel.png)
+
+### 6. Track the site across time
+
+Repeat step 4 for as many dates as you want — a grave's outline can be
+digitized separately at each point in time it was visible, e.g. to show it
+appearing, growing, or being disturbed. Each date keeps its own independent
+set of vertices and its own matched imagery capture.
+
+![Two date chips on the timeline: "2020-01" and "2024-06", both with points](docs/images/07-two-dates-timeline.png)
+
+Once there's more than one date, a **slider** appears under the date list.
+Drag it (or click a chip) to switch which date is active — this swaps both
+the displayed polygon and the satellite imagery to that date's matched
+capture. **The map's pan/zoom never changes** when you do this, so you stay
+oriented as you move through time.
+
+![Slider moved to "2024-06", showing that date's polygon and matched imagery](docs/images/08-slider-switch.jpg)
+
+### 7. Submit
+
+Click **Submit** once every date on the timeline has at least 3 vertices
+(you'll get an inline error naming any date that doesn't). This opens the
+classification dialog:
+
+- **Grave classification** — whether the site is **clandestine** or
+  **attached to a recognized cemetery**.
+- **Description** *(required)* — a free-text description of the site that
+  must include a citation for your source(s) (field notes, imagery
+  analysis, a registry record, news reporting, etc.).
+- **Signature** *(required)* — the name of the person submitting the item,
+  for accountability/provenance.
+
+![The classification modal: grave type radios, description textarea, signature field](docs/images/09-classification-modal.jpg)
+
+Fill in all the fields — the **Confirm & submit** button won't proceed
+without a description and signature.
+
+![The classification modal filled in with grave type, a cited description, and a signature](docs/images/10-modal-filled.jpg)
+
+### 8. Confirm and download
+
+Clicking **Confirm & submit**:
+
+1. Builds one real `.shp`/`.shx`/`.dbf`/`.prj` shapefile per date.
+2. Best-effort reverse-geocodes the polygons' centroid to a nearby city
+   (via OpenStreetMap Nominatim) for the metadata.
+3. Zips everything together with a `metadata.json` and downloads it
+   straight to your machine as `<item-slug>_<timestamp>.zip`.
+4. Clears the workspace (map view untouched) so you can start the next
+   item, and adds this one to **Previous items** in the side panel.
+
+![Success toast showing the downloaded zip filename, workspace reset](docs/images/11-submission-complete.jpg)
+
+**Previous items** is a per-browser convenience list (via `localStorage`)
+so you can see what you've already submitted in this session — the
+authoritative data lives in each downloaded zip, not in the browser. Use
+**New item** at any point to discard the current in-progress item and start
+fresh (it'll ask for confirmation if you have unsaved work), or **clear**
+next to Previous items to wipe that local history (downloaded zips are
+unaffected).
+
+![Previous items list showing the just-submitted "Site-014" entry](docs/images/12-previous-items.png)
+
 ## Run locally
 
 No build step or dependencies to install — it's plain static files. Any
