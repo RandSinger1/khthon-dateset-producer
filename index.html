@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Khthon &mdash; Grave Shapefile Builder</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="top-bar">
+  <div class="field">
+    <label for="item-name">Item name</label>
+    <input id="item-name" type="text" placeholder="e.g. Site-014" />
+  </div>
+
+  <div class="field">
+    <label for="coord-search">Go to coordinates</label>
+    <div class="inline">
+      <input id="coord-search" type="text" placeholder="lat, lng" />
+      <button id="coord-search-btn" class="btn small">Go</button>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+
+  <button id="new-item-btn" class="btn ghost">New item</button>
+  <button id="submit-btn" class="btn primary">Submit</button>
+</div>
+
+<div id="side-panel">
+  <div class="panel-section">
+    <div class="panel-title">Timeline</div>
+    <div id="date-list" class="date-list"></div>
+
+    <div class="add-date-row">
+      <input id="new-date" type="date" />
+      <button id="add-date-btn" class="btn small">Add date</button>
+    </div>
+
+    <div class="slider-row" id="slider-row" style="display:none;">
+      <input id="date-slider" type="range" min="0" max="0" step="1" value="0" />
+      <div id="date-slider-label" class="slider-label">&mdash;</div>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="panel-title">Vertices <span id="vertex-count" class="muted">(0)</span></div>
+    <p class="hint">Click the satellite map to place vertices for the selected date. Right-click a vertex to remove it.</p>
+    <div class="btn-row">
+      <button id="undo-vertex-btn" class="btn small">Undo last</button>
+      <button id="clear-vertices-btn" class="btn small">Clear</button>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="panel-title">
+      Previous items
+      <span class="spacer"></span>
+      <span id="clear-items-btn" class="chip-remove" title="Clear this browser's history">clear</span>
+    </div>
+    <p class="hint">Remembered on this device only &mdash; each submission also downloads its own zip.</p>
+    <div id="items-list" class="items-list"><span class="muted">None yet</span></div>
+  </div>
+</div>
+
+<div id="status" class="status"></div>
+
+<!-- Grave type modal -->
+<div id="modal-backdrop" class="modal-backdrop hidden">
+  <div class="modal">
+    <h2>Grave classification</h2>
+    <p>Is this grave clandestine, or attached to a recognized cemetery?</p>
+    <div class="modal-options">
+      <label class="radio-option">
+        <input type="radio" name="grave-type" value="clandestine" checked />
+        Clandestine
+      </label>
+      <label class="radio-option">
+        <input type="radio" name="grave-type" value="cemetery" />
+        Attached to a cemetery
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button id="modal-cancel-btn" class="btn ghost">Cancel</button>
+      <button id="modal-confirm-btn" class="btn primary">Confirm &amp; submit</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
