@@ -68,6 +68,7 @@
     imageryLabel: document.getElementById("imagery-label"),
     dateList: document.getElementById("date-list"),
     newDate: document.getElementById("new-date"),
+    newDateFallback: document.getElementById("new-date-fallback"),
     addDateBtn: document.getElementById("add-date-btn"),
     sliderRow: document.getElementById("slider-row"),
     slider: document.getElementById("date-slider"),
@@ -96,11 +97,14 @@
 
   // ---------------------------------------------------------------------
   // Historical satellite imagery (Esri World Imagery Wayback). Each
-  // "release" is a full archived capture from some date; we snap every
-  // timeline date to whichever release is chronologically closest, then
-  // crossfade the basemap to that release's tiles (see swapImageryLayer
-  // below) — map center/zoom are never touched, so the continuity
-  // guarantee for switching dates still holds.
+  // "release" is a full archived capture from some date. The timeline's
+  // date field is populated directly from this release list, so every
+  // date you can add already has a matching capture — no nearest-match
+  // guessing needed. Picking one crossfades the basemap to that release's
+  // tiles (see swapImageryLayer below) — map center/zoom are never
+  // touched, so the continuity guarantee for switching dates still holds.
+  // (nearestRelease below still backs the rare fallback-picker case, where
+  // the release list itself failed to load.)
   // ---------------------------------------------------------------------
   const WAYBACK_CONFIG_URL =
     "https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json";
@@ -131,15 +135,9 @@
     return releases;
   }
 
-  // Timeline dates are month-precision ("YYYY-MM"); anchor to the 1st of
-  // the month when comparing against Wayback releases' full dates.
-  function monthStringToDate(monthStr) {
-    return new Date(monthStr + "-01T00:00:00Z");
-  }
-
   function nearestRelease(dateStr) {
     if (!waybackReleases.length) return null;
-    const target = monthStringToDate(dateStr).getTime();
+    const target = new Date(dateStr + "T00:00:00Z").getTime();
     let best = waybackReleases[0];
     let bestDiff = Math.abs(best.date.getTime() - target);
     for (const release of waybackReleases) {
@@ -159,7 +157,7 @@
 
   let currentRelease = null;
   let currentUrlTemplate = CURRENT_IMAGERY_URL;
-  // Raw "YYYY-MM" from the date picker while its value is being changed
+  // Raw "YYYY-MM-DD" from the date picker while its value is being changed
   // but hasn't been committed via "Add date" yet — lets the calendar drive
   // a live imagery preview before a timeline entry exists for it.
   let previewDate = null;
@@ -169,9 +167,12 @@
       dom.imageryLabel.textContent = waybackReady ? "Imagery: current" : "Imagery: loading…";
       return;
     }
-    const referenceDate = previewDate || (visibleEntry ? visibleEntry.date : null);
-    const base = referenceDate
-      ? `Imagery: ${currentRelease.dateStr} (nearest capture to ${referenceDate})`
+    // Timeline dates are picked directly from the list of real Wayback
+    // captures, so the shown release always exactly matches the active
+    // date — no "nearest capture to X" hedging needed here anymore.
+    const isExplicit = previewDate || visibleEntry;
+    const base = isExplicit
+      ? `Imagery: ${currentRelease.dateStr}`
       : `Imagery: ${currentRelease.dateStr} (latest)`;
     dom.imageryLabel.textContent = imageryHasFallbackTiles
       ? `${base} — some tiles at lower resolution`
@@ -218,20 +219,85 @@
     applyImageryRelease(release);
   }
 
+  // The timeline's date field only offers dates that actually have a
+  // Wayback capture — populated straight from the release list, in
+  // whatever cadence Esri published them (weekly in some periods/regions,
+  // months apart in others), rather than letting you pick an arbitrary
+  // date and snapping it to the nearest capture after the fact.
+  function populateDateOptions() {
+    const select = dom.newDate;
+    const previousValue = select.value;
+    select.innerHTML = "";
+
+    if (!waybackReleases.length) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "No imagery dates available";
+      select.appendChild(opt);
+      select.disabled = true;
+      return;
+    }
+
+    select.disabled = false;
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Select a capture date…";
+    select.appendChild(placeholder);
+
+    waybackReleases.forEach((release) => {
+      const opt = document.createElement("option");
+      opt.value = release.dateStr;
+      const alreadyUsed = dates.some((d) => d.date === release.dateStr);
+      opt.textContent = alreadyUsed ? `${release.dateStr} (already added)` : release.dateStr;
+      opt.disabled = alreadyUsed;
+      select.appendChild(opt);
+    });
+
+    if (previousValue && Array.from(select.options).some((o) => o.value === previousValue)) {
+      select.value = previousValue;
+    }
+  }
+
+  // If the Wayback config can't be fetched at all, there's no capture list
+  // to offer — fall back to a plain date picker so the tool stays usable
+  // (just without historical imagery matching), rather than blocking
+  // "Add date" entirely.
+  function enableFallbackDatePicker() {
+    dom.newDate.style.display = "none";
+    dom.newDate.disabled = true;
+    dom.newDateFallback.style.display = "";
+  }
+
+  function getNewDateValue() {
+    return dom.newDateFallback.style.display !== "none"
+      ? dom.newDateFallback.value
+      : dom.newDate.value;
+  }
+
+  function clearNewDateValue() {
+    if (dom.newDateFallback.style.display !== "none") {
+      dom.newDateFallback.value = "";
+    } else {
+      dom.newDate.value = "";
+    }
+  }
+
   fetchWaybackReleases()
     .then((releases) => {
       waybackReleases = releases;
       waybackReady = true;
       dates.forEach(assignImageryRelease);
+      populateDateOptions();
       refreshDateChips();
       updateImageryLayer();
     })
     .catch(() => {
       showStatus(
-        "Historical imagery unavailable — dates won't change the satellite view.",
+        "Historical imagery unavailable — pick any date; the satellite view won't change with it.",
         "error"
       );
       dom.imageryLabel.textContent = "Imagery: current (history unavailable)";
+      enableFallbackDatePicker();
     });
 
   // ---------------------------------------------------------------------
@@ -364,9 +430,10 @@
           : entry.vertices.length > 0
           ? `${entry.vertices.length} pts (need 3+)`
           : "empty";
-      status.textContent = entry.imageryRelease
-        ? `${ptsText} · img ${entry.imageryRelease.dateStr}`
-        : ptsText;
+      status.textContent =
+        entry.imageryRelease && entry.imageryRelease.dateStr !== entry.date
+          ? `${ptsText} · img ${entry.imageryRelease.dateStr}`
+          : ptsText;
       chip.appendChild(status);
 
       const remove = document.createElement("span");
@@ -390,6 +457,7 @@
     map.removeLayer(entry.group);
     if (visibleEntry === entry) visibleEntry = null;
     dates.splice(index, 1);
+    populateDateOptions();
 
     if (dates.length === 0) {
       currentIndex = -1;
@@ -404,18 +472,21 @@
     }
   }
 
-  dom.newDate.addEventListener("input", () => {
+  dom.newDate.addEventListener("change", () => {
     previewImageryForDate(dom.newDate.value);
+  });
+  dom.newDateFallback.addEventListener("input", () => {
+    previewImageryForDate(dom.newDateFallback.value);
   });
 
   dom.addDateBtn.addEventListener("click", () => {
-    const value = dom.newDate.value;
+    const value = getNewDateValue();
     if (!value) {
-      showStatus("Pick a month first.", "error");
+      showStatus("Pick a date first.", "error");
       return;
     }
     if (dates.some((d) => d.date === value)) {
-      showStatus("That month is already on the timeline.", "error");
+      showStatus("That date is already on the timeline.", "error");
       return;
     }
     const entry = { date: value, vertices: [], group: L.layerGroup(), imageryRelease: null };
@@ -428,7 +499,8 @@
     dom.sliderRow.style.display = dates.length > 1 ? "flex" : "none";
 
     selectDate(newIndex);
-    dom.newDate.value = "";
+    clearNewDateValue();
+    populateDateOptions();
   });
 
   dom.slider.addEventListener("input", () => {
@@ -543,6 +615,8 @@
     dom.slider.max = "0";
     dom.slider.value = "0";
     dom.sliderRow.style.display = "none";
+    clearNewDateValue();
+    populateDateOptions();
     updateImageryLayer();
     refreshVertexUI();
     refreshDateChips();

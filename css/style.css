@@ -74,6 +74,7 @@ html, body {
 input[type="text"],
 input[type="date"],
 input[type="month"],
+select,
 textarea {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--panel-border);
@@ -89,9 +90,15 @@ textarea {
   resize: vertical;
 }
 
+select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 input[type="text"]:focus,
 input[type="date"]:focus,
 input[type="month"]:focus,
+select:focus,
 textarea:focus {
   border-color: var(--accent);
 }
@@ -212,7 +219,8 @@ textarea:focus {
   display: flex;
   gap: 6px;
 }
-.add-date-row input { flex: 1; min-width: 0; }
+.add-date-row input,
+.add-date-row select { flex: 1; min-width: 0; }
 
 .slider-row {
   margin-top: 12px;

@@ -11,16 +11,19 @@ step) so it can be hosted directly on GitHub Pages.
 
 - Satellite basemap (Esri World Imagery), click to place polygon vertices.
 - Right-click a vertex to delete it; undo/clear controls for the active date.
-- Timeline: add any number of month-precision dates per item, each with its
-  own polygon. Picking a month in the calendar immediately previews imagery
-  from that time (via [Esri World Imagery Wayback](https://livingatlas.arcgis.com/wayback/),
-  snapped to the nearest available historical capture) — even before you
-  click "Add date" — so you can browse across time without committing a
-  timeline entry for every month you look at. Once added, switching between
-  dates on the slider or chip list shows each one's own polygon the same
-  way. Through all of this **the map's pan/zoom never changes**, so you
-  stay oriented as you move through time, and the sidebar always shows
-  which actual capture date you're looking at.
+- Timeline: add any number of dates per item, each with its own polygon.
+  The date field only offers dates that actually have an
+  [Esri World Imagery Wayback](https://livingatlas.arcgis.com/wayback/)
+  capture — populated live from Esri's release list, at whatever cadence
+  they were actually published (as often as every couple of weeks in some
+  periods/regions, months apart in others) — so there's no picking an
+  arbitrary date and hoping the imagery is close. Selecting one in the
+  dropdown immediately previews that exact capture — even before you click
+  "Add date" — so you can browse across time without committing a timeline
+  entry for every date you look at. Once added, switching between dates on
+  the slider or chip list shows each one's own polygon the same way.
+  Through all of this **the map's pan/zoom never changes**, so you stay
+  oriented as you move through time.
 - Coordinate search box to jump straight to a location — accepts decimal
   degrees, degrees-decimal-minutes, or full DMS, with N/S/E/W as a prefix
   or suffix on either value, common degree/minute/second symbols, and
@@ -77,17 +80,23 @@ A confirmation toast in the bottom-left shows the coordinates it jumped to.
 
 ### 4. Add a date and draw the polygon
 
-Pick a **month** in the timeline's date field (dates in this tool are
-month-precision, not day-precision) and click **Add date**. This:
+The timeline's date field is a dropdown of **actual imagery capture
+dates** — every option in it is a real [Wayback](https://livingatlas.arcgis.com/wayback/)
+release, so you're never guessing at how close your pick is to available
+imagery. Pick one and click **Add date**. This:
 
 - Creates a new timeline entry, sorted chronologically among any others.
-- Snaps the basemap to the nearest available [Wayback](https://livingatlas.arcgis.com/wayback/)
-  historical imagery capture to that month, so you're drawing against
-  imagery from roughly the right time — the **Imagery** label at the top of
-  the side panel shows exactly which capture date was used.
+- Immediately shows that exact capture on the basemap — the **Imagery**
+  label at the top of the side panel confirms which date it's showing.
 - Makes that date the "active" one — vertices you place next belong to it.
+- Marks that option `(already added)` and disables it in the dropdown, so
+  you can't accidentally add the same capture twice.
 
-![A "2024-06" date chip added to the timeline, imagery label showing the matched capture](docs/images/04-add-date.jpg)
+(If Esri's release list can't be reached at all, the dropdown falls back to
+a plain date picker with no historical matching — see
+[Historical imagery notes](#historical-imagery-notes).)
+
+![A date chip added to the timeline, imagery label showing the matched capture](docs/images/04-add-date.jpg)
 
 With a date active, **click anywhere on the satellite map** to drop a
 vertex. Keep clicking to build up the outline — the app draws a dashed line
@@ -103,29 +112,29 @@ after 2 points and fills in a solid polygon once you have 3 or more.
 
 ### 5. The timeline panel
 
-Each date gets its own chip showing the month, point count, and which
-imagery capture it matched to (chips turn green once a date has 3+ points
-and is ready to submit). Click a chip to make that date active and view its
-polygon; click the **✕** on a chip to remove that date entirely.
+Each date gets its own chip showing the capture date and point count
+(chips turn green once a date has 3+ points and is ready to submit). Click
+a chip to make that date active and view its polygon; click the **✕** on a
+chip to remove that date entirely (freeing it back up in the dropdown).
 
-![Timeline panel close-up: one date chip with 4 points, imagery match shown](docs/images/06-timeline-panel.png)
+![Timeline panel close-up: one date chip with 4 points](docs/images/06-timeline-panel.png)
 
 ### 6. Track the site across time
 
 Repeat step 4 for as many dates as you want — a grave's outline can be
-digitized separately at each point in time it was visible, e.g. to show it
-appearing, growing, or being disturbed. Each date keeps its own independent
-set of vertices and its own matched imagery capture.
+digitized separately at each available capture it was visible in, e.g. to
+show it appearing, growing, or being disturbed. Each date keeps its own
+independent set of vertices.
 
-![Two date chips on the timeline: "2020-01" and "2024-06", both with points](docs/images/07-two-dates-timeline.png)
+![Two date chips on the timeline, each with its own points](docs/images/07-two-dates-timeline.png)
 
 Once there's more than one date, a **slider** appears under the date list.
 Drag it (or click a chip) to switch which date is active — this swaps both
-the displayed polygon and the satellite imagery to that date's matched
-capture. **The map's pan/zoom never changes** when you do this, so you stay
-oriented as you move through time.
+the displayed polygon and the satellite imagery to that date's capture.
+**The map's pan/zoom never changes** when you do this, so you stay oriented
+as you move through time.
 
-![Slider moved to "2024-06", showing that date's polygon and matched imagery](docs/images/08-slider-switch.jpg)
+![Slider moved to a different date, showing that date's polygon and imagery](docs/images/08-slider-switch.jpg)
 
 ### 7. Submit
 
@@ -203,26 +212,29 @@ domain root or under a `/<repo>/` subpath.
 Each submission downloads a zip named `<item-slug>_<timestamp>.zip`
 containing:
 
-- `<date>.shp` / `.shx` / `.dbf` / `.prj` — one shapefile per month, WGS84
+- `<date>.shp` / `.shx` / `.dbf` / `.prj` — one shapefile per date, WGS84
   (EPSG:4326), attributes: `item`, `date`, `grave_type`, `created_at`,
-  `img_date` (the actual Wayback capture date the polygon was drawn against).
+  `img_date` (the Wayback capture date the polygon was drawn against — the
+  same as `date` for any entry added from the imagery-dates dropdown).
 - `metadata.json` — item name, grave type, description (with citation),
   signature, creation time, best-effort nearest city, and each date paired
   with its matched imagery capture date.
 
 ## Historical imagery notes
 
-- Esri's Wayback archive has irregular coverage — captures are roughly
-  every few weeks to months since ~2014, and resolution/availability
-  varies a lot by region. The nearest available capture is used, and the
-  actual date is always shown, but it may be well off from the date you
-  picked in sparsely-covered areas.
-- If the nearest capture is missing tiles at your current zoom (common for
-  older captures or rural/remote areas), those tiles fall back to a
-  scaled-up lower-zoom tile ([Leaflet.TileLayer.Fallback](https://github.com/ghybs/Leaflet.TileLayer.Fallback))
+- The timeline's date field is populated live from Esri's Wayback release
+  list, so every date offered already has a real capture behind it — no
+  nearest-match guessing needed. Coverage cadence is irregular though:
+  captures have been published roughly every few weeks to months since
+  ~2014, and how frequent/recent they are varies a lot by region, so the
+  set of dates available for one site can look very different from another.
+- If a capture is missing tiles at your current zoom (common for older
+  captures or rural/remote areas), those tiles fall back to a scaled-up
+  lower-zoom tile ([Leaflet.TileLayer.Fallback](https://github.com/ghybs/Leaflet.TileLayer.Fallback))
   instead of leaving a blank gap. The imagery label notes "some tiles at
   lower resolution" when this happens.
 - The release list is fetched live from Esri's config endpoint on page
-  load. If that fetch fails (offline, endpoint unreachable), the app falls
-  back to a single current-imagery layer and a status message says
-  historical dates won't change the basemap — everything else still works.
+  load. If that fetch fails (offline, endpoint unreachable), the date field
+  falls back to a plain date picker with no historical matching — the
+  basemap stays on current imagery regardless of which date you pick, and
+  a status message says so. Everything else still works.

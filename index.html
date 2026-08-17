@@ -38,9 +38,13 @@
     <div id="date-list" class="date-list"></div>
 
     <div class="add-date-row">
-      <input id="new-date" type="month" />
+      <select id="new-date" disabled>
+        <option value="">Loading imagery dates&hellip;</option>
+      </select>
+      <input id="new-date-fallback" type="date" style="display:none;" />
       <button id="add-date-btn" class="btn small">Add date</button>
     </div>
+    <p class="hint">Only dates with an actual Wayback imagery capture can be added.</p>
 
     <div class="slider-row" id="slider-row" style="display:none;">
       <input id="date-slider" type="range" min="0" max="0" step="1" value="0" />
