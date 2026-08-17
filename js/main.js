@@ -4,24 +4,26 @@
   // ---------------------------------------------------------------------
   // Map setup — satellite basemap. View state (center/zoom) is only ever
   // changed by explicit user actions (initial load, coordinate search).
-  // Switching between timeline dates NEVER touches the view, so the user
-  // keeps their place on the map as they move through time.
+  // Switching between timeline dates NEVER touches the view — only which
+  // imagery capture and which polygon are shown, via setUrl()/layer
+  // toggling, so the user keeps their place on the map through time.
   // ---------------------------------------------------------------------
   const map = L.map("map", { zoomControl: true }).setView([20, 0], 3);
 
-  L.tileLayer(
-    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    {
-      attribution:
-        "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics",
-      maxZoom: 20,
-    }
-  ).addTo(map);
+  const CURRENT_IMAGERY_URL =
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+
+  const satelliteLayer = L.tileLayer(CURRENT_IMAGERY_URL, {
+    attribution:
+      "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics",
+    maxZoom: 20,
+  }).addTo(map);
 
   // ---------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------
-  // Each entry: { date, vertices: [[lat,lng], ...], group: L.LayerGroup }
+  // Each entry: { date, vertices: [[lat,lng], ...], group: L.LayerGroup,
+  //               imageryRelease: {rNum, dateStr, urlTemplate} | null }
   let dates = [];
   let currentIndex = -1;
   let visibleEntry = null; // tracked by reference, not index — indices shift on sort/splice
@@ -32,6 +34,7 @@
     coordSearchBtn: document.getElementById("coord-search-btn"),
     newItemBtn: document.getElementById("new-item-btn"),
     submitBtn: document.getElementById("submit-btn"),
+    imageryLabel: document.getElementById("imagery-label"),
     dateList: document.getElementById("date-list"),
     newDate: document.getElementById("new-date"),
     addDateBtn: document.getElementById("add-date-btn"),
@@ -57,6 +60,100 @@
       dom.status.classList.remove("visible");
     }, 4500);
   }
+
+  // ---------------------------------------------------------------------
+  // Historical satellite imagery (Esri World Imagery Wayback). Each
+  // "release" is a full archived capture from some date; we snap every
+  // timeline date to whichever release is chronologically closest, then
+  // swap the basemap tile URL in place with setUrl() — that only changes
+  // which pixels the current tiles show, it never touches map center or
+  // zoom, so the continuity guarantee for switching dates still holds.
+  // ---------------------------------------------------------------------
+  const WAYBACK_CONFIG_URL =
+    "https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json";
+
+  let waybackReleases = []; // sorted ascending by date
+  let waybackReady = false;
+
+  async function fetchWaybackReleases() {
+    const resp = await fetch(WAYBACK_CONFIG_URL);
+    if (!resp.ok) throw new Error(`Wayback config fetch failed (${resp.status})`);
+    const config = await resp.json();
+    const releases = [];
+    for (const rNum in config) {
+      const entry = config[rNum];
+      const match = /\((?:Wayback )?(\d{4}-\d{2}-\d{2})\)/.exec(entry.itemTitle || "");
+      if (!match || !entry.itemURL) continue;
+      releases.push({
+        rNum,
+        dateStr: match[1],
+        date: new Date(match[1] + "T00:00:00Z"),
+        urlTemplate: entry.itemURL
+          .replace("{level}", "{z}")
+          .replace("{row}", "{y}")
+          .replace("{col}", "{x}"),
+      });
+    }
+    releases.sort((a, b) => a.date - b.date);
+    return releases;
+  }
+
+  function nearestRelease(dateStr) {
+    if (!waybackReleases.length) return null;
+    const target = new Date(dateStr + "T00:00:00Z").getTime();
+    let best = waybackReleases[0];
+    let bestDiff = Math.abs(best.date.getTime() - target);
+    for (const release of waybackReleases) {
+      const diff = Math.abs(release.date.getTime() - target);
+      if (diff < bestDiff) {
+        best = release;
+        bestDiff = diff;
+      }
+    }
+    return best;
+  }
+
+  function assignImageryRelease(entry) {
+    if (!waybackReady) return;
+    entry.imageryRelease = nearestRelease(entry.date);
+  }
+
+  function updateImageryLayer() {
+    let release = null;
+    if (visibleEntry && visibleEntry.imageryRelease) {
+      release = visibleEntry.imageryRelease;
+    } else if (waybackReady && waybackReleases.length) {
+      release = waybackReleases[waybackReleases.length - 1]; // most recent = "current"
+    }
+
+    if (!release) {
+      dom.imageryLabel.textContent = waybackReady
+        ? "Imagery: current"
+        : "Imagery: loading…";
+      return;
+    }
+
+    satelliteLayer.setUrl(release.urlTemplate);
+    dom.imageryLabel.textContent = visibleEntry
+      ? `Imagery: ${release.dateStr} (nearest capture to ${visibleEntry.date})`
+      : `Imagery: ${release.dateStr} (latest)`;
+  }
+
+  fetchWaybackReleases()
+    .then((releases) => {
+      waybackReleases = releases;
+      waybackReady = true;
+      dates.forEach(assignImageryRelease);
+      refreshDateChips();
+      updateImageryLayer();
+    })
+    .catch(() => {
+      showStatus(
+        "Historical imagery unavailable — dates won't change the satellite view.",
+        "error"
+      );
+      dom.imageryLabel.textContent = "Imagery: current (history unavailable)";
+    });
 
   // ---------------------------------------------------------------------
   // Layer rebuilding for a date entry
@@ -162,6 +259,7 @@
     currentIndex = index;
     dom.slider.value = String(index);
     dom.sliderLabel.textContent = entry.date;
+    updateImageryLayer();
     refreshVertexUI();
     refreshDateChips();
   }
@@ -181,12 +279,15 @@
 
       const status = document.createElement("span");
       status.className = "chip-status";
-      status.textContent =
+      const ptsText =
         entry.vertices.length >= 3
           ? `${entry.vertices.length} pts`
           : entry.vertices.length > 0
           ? `${entry.vertices.length} pts (need 3+)`
           : "empty";
+      status.textContent = entry.imageryRelease
+        ? `${ptsText} · img ${entry.imageryRelease.dateStr}`
+        : ptsText;
       chip.appendChild(status);
 
       const remove = document.createElement("span");
@@ -214,6 +315,7 @@
     if (dates.length === 0) {
       currentIndex = -1;
       dom.sliderRow.style.display = "none";
+      updateImageryLayer();
       refreshVertexUI();
       refreshDateChips();
     } else {
@@ -233,7 +335,8 @@
       showStatus("That date is already on the timeline.", "error");
       return;
     }
-    const entry = { date: value, vertices: [], group: L.layerGroup() };
+    const entry = { date: value, vertices: [], group: L.layerGroup(), imageryRelease: null };
+    assignImageryRelease(entry);
     dates.push(entry);
     dates.sort((a, b) => a.date.localeCompare(b.date));
     const newIndex = dates.findIndex((d) => d.date === value);
@@ -295,6 +398,7 @@
     dom.slider.max = "0";
     dom.slider.value = "0";
     dom.sliderRow.style.display = "none";
+    updateImageryLayer();
     refreshVertexUI();
     refreshDateChips();
   }
@@ -353,6 +457,7 @@
         date: entry.date,
         grave_type: graveType,
         created_at: createdAt,
+        img_date: entry.imageryDate || "",
       };
       const files = await writeDateShapefile(row, ring);
       const safeDate = entry.date.replace(/[^0-9A-Za-z_-]/g, "-");
@@ -366,7 +471,7 @@
       item_name: itemName,
       grave_type: graveType,
       created_at: createdAt,
-      dates: entries.map((e) => e.date),
+      dates: entries.map((e) => ({ date: e.date, imagery_date: e.imageryDate || null })),
     };
     zip.file("metadata.json", JSON.stringify(metadata, null, 2));
 
@@ -416,7 +521,11 @@
   dom.modalConfirm.addEventListener("click", async () => {
     const graveType = document.querySelector('input[name="grave-type"]:checked').value;
     const itemName = dom.itemName.value.trim();
-    const entries = dates.map((d) => ({ date: d.date, vertices: d.vertices }));
+    const entries = dates.map((d) => ({
+      date: d.date,
+      vertices: d.vertices,
+      imageryDate: d.imageryRelease ? d.imageryRelease.dateStr : null,
+    }));
     const createdAt = new Date().toISOString().replace(/\.\d+Z$/, "Z");
 
     dom.modalConfirm.disabled = true;

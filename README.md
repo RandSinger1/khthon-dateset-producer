@@ -12,8 +12,12 @@ step) so it can be hosted directly on GitHub Pages.
 - Satellite basemap (Esri World Imagery), click to place polygon vertices.
 - Right-click a vertex to delete it; undo/clear controls for the active date.
 - Timeline: add any number of dates per item, each with its own polygon.
-  Switching dates only toggles which shape is shown — **the map's pan/zoom
-  never changes**, so you stay oriented as you move through time.
+  Switching dates swaps the satellite basemap to imagery from that time
+  (via [Esri World Imagery Wayback](https://livingatlas.arcgis.com/wayback/),
+  snapped to the nearest available historical capture) and shows only that
+  date's polygon — but **the map's pan/zoom never changes**, so you stay
+  oriented as you move through time. The sidebar always shows which actual
+  capture date you're looking at.
 - Coordinate search box ("lat, lng") to jump straight to a location.
 - On submit, you're asked whether the grave is **clandestine** or
   **attached to a cemetery** — this is saved into each shapefile's
@@ -58,5 +62,19 @@ Each submission downloads a zip named `<item-slug>_<timestamp>.zip`
 containing:
 
 - `<date>.shp` / `.shx` / `.dbf` / `.prj` — one shapefile per date, WGS84
-  (EPSG:4326), attributes: `item`, `date`, `grave_type`, `created_at`.
-- `metadata.json` — item name, grave type, list of dates, creation time.
+  (EPSG:4326), attributes: `item`, `date`, `grave_type`, `created_at`,
+  `img_date` (the actual Wayback capture date the polygon was drawn against).
+- `metadata.json` — item name, grave type, creation time, and each date
+  paired with its matched imagery capture date.
+
+## Historical imagery notes
+
+- Esri's Wayback archive has irregular coverage — captures are roughly
+  every few weeks to months since ~2014, and resolution/availability
+  varies a lot by region. The nearest available capture is used, and the
+  actual date is always shown, but it may be well off from the date you
+  picked in sparsely-covered areas.
+- The release list is fetched live from Esri's config endpoint on page
+  load. If that fetch fails (offline, endpoint unreachable), the app falls
+  back to a single current-imagery layer and a status message says
+  historical dates won't change the basemap — everything else still works.

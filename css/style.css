@@ -156,6 +156,16 @@ input[type="date"]:focus {
   overflow-y: auto;
 }
 
+.imagery-label {
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  margin-bottom: 10px;
+}
+
 .date-chip {
   display: flex;
   align-items: center;
