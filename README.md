@@ -12,12 +12,15 @@ step) so it can be hosted directly on GitHub Pages.
 - Satellite basemap (Esri World Imagery), click to place polygon vertices.
 - Right-click a vertex to delete it; undo/clear controls for the active date.
 - Timeline: add any number of dates per item, each with its own polygon.
-  Switching dates swaps the satellite basemap to imagery from that time
+  Picking a date in the calendar immediately previews imagery from that time
   (via [Esri World Imagery Wayback](https://livingatlas.arcgis.com/wayback/),
-  snapped to the nearest available historical capture) and shows only that
-  date's polygon — but **the map's pan/zoom never changes**, so you stay
-  oriented as you move through time. The sidebar always shows which actual
-  capture date you're looking at.
+  snapped to the nearest available historical capture) — even before you
+  click "Add date" — so you can browse across time without committing a
+  timeline entry for every date you look at. Once added, switching between
+  dates on the slider or chip list shows each one's own polygon the same
+  way. Through all of this **the map's pan/zoom never changes**, so you
+  stay oriented as you move through time, and the sidebar always shows
+  which actual capture date you're looking at.
 - Coordinate search box to jump straight to a location — accepts decimal
   degrees, degrees-decimal-minutes, or full DMS, with N/S/E/W as a prefix
   or suffix on either value, common degree/minute/second symbols, and

@@ -151,41 +151,63 @@
 
   let currentRelease = null;
   let currentUrlTemplate = CURRENT_IMAGERY_URL;
+  // Raw "YYYY-MM-DD" from the date picker while its value is being changed
+  // but hasn't been committed via "Add date" yet — lets the calendar drive
+  // a live imagery preview before a timeline entry exists for it.
+  let previewDate = null;
 
   function renderImageryLabel() {
     if (!currentRelease) {
       dom.imageryLabel.textContent = waybackReady ? "Imagery: current" : "Imagery: loading…";
       return;
     }
-    const base = visibleEntry
-      ? `Imagery: ${currentRelease.dateStr} (nearest capture to ${visibleEntry.date})`
+    const referenceDate = previewDate || (visibleEntry ? visibleEntry.date : null);
+    const base = referenceDate
+      ? `Imagery: ${currentRelease.dateStr} (nearest capture to ${referenceDate})`
       : `Imagery: ${currentRelease.dateStr} (latest)`;
     dom.imageryLabel.textContent = imageryHasFallbackTiles
       ? `${base} — some tiles at lower resolution`
       : base;
   }
 
+  function applyImageryRelease(release) {
+    currentRelease = release;
+    imageryHasFallbackTiles = false;
+    if (!release) {
+      renderImageryLabel();
+      return;
+    }
+    if (release.urlTemplate !== currentUrlTemplate) {
+      currentUrlTemplate = release.urlTemplate;
+      swapImageryLayer(release.urlTemplate);
+    }
+    renderImageryLabel();
+  }
+
   function updateImageryLayer() {
+    previewDate = null;
     let release = null;
     if (visibleEntry && visibleEntry.imageryRelease) {
       release = visibleEntry.imageryRelease;
     } else if (waybackReady && waybackReleases.length) {
       release = waybackReleases[waybackReleases.length - 1]; // most recent = "current"
     }
+    applyImageryRelease(release);
+  }
 
-    currentRelease = release;
-    imageryHasFallbackTiles = false;
-
-    if (!release) {
-      renderImageryLabel();
+  // Live preview as the date picker's value changes, before "Add date" is
+  // clicked — lets you browse imagery across time without committing a
+  // timeline entry for every date you look at.
+  function previewImageryForDate(dateStr) {
+    if (!waybackReady) return;
+    if (!dateStr) {
+      updateImageryLayer();
       return;
     }
-
-    if (release.urlTemplate !== currentUrlTemplate) {
-      currentUrlTemplate = release.urlTemplate;
-      swapImageryLayer(release.urlTemplate);
-    }
-    renderImageryLabel();
+    const release = nearestRelease(dateStr);
+    if (!release) return;
+    previewDate = dateStr;
+    applyImageryRelease(release);
   }
 
   fetchWaybackReleases()
@@ -373,6 +395,10 @@
       selectDate(nextIndex);
     }
   }
+
+  dom.newDate.addEventListener("input", () => {
+    previewImageryForDate(dom.newDate.value);
+  });
 
   dom.addDateBtn.addEventListener("click", () => {
     const value = dom.newDate.value;
