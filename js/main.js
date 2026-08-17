@@ -5,7 +5,7 @@
   // Map setup — satellite basemap. View state (center/zoom) is only ever
   // changed by explicit user actions (initial load, coordinate search).
   // Switching between timeline dates NEVER touches the view — only which
-  // imagery capture and which polygon are shown, via setUrl()/layer
+  // imagery capture and which polygon are shown, via layer swapping and
   // toggling, so the user keeps their place on the map through time.
   // ---------------------------------------------------------------------
   const map = L.map("map", { zoomControl: true }).setView([20, 0], 3);
@@ -13,21 +13,42 @@
   const CURRENT_IMAGERY_URL =
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 
-  // .fallback (not plain L.tileLayer) so that missing tiles — common in
-  // older/rural Wayback captures — fall back to a scaled-up tile from the
-  // nearest lower zoom level instead of leaving a blank gap.
-  const satelliteLayer = L.tileLayer.fallback(CURRENT_IMAGERY_URL, {
+  const IMAGERY_LAYER_OPTIONS = {
     attribution:
       "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics",
     maxZoom: 20,
-  }).addTo(map);
+  };
+
+  // .fallback (not plain L.tileLayer) so that missing tiles — common in
+  // older/rural Wayback captures — fall back to a scaled-up tile from the
+  // nearest lower zoom level instead of leaving a blank gap.
+  let satelliteLayer = L.tileLayer.fallback(CURRENT_IMAGERY_URL, IMAGERY_LAYER_OPTIONS).addTo(map);
 
   let imageryHasFallbackTiles = false;
-  satelliteLayer.on("tilefallback", () => {
+  satelliteLayer.on("tilefallback", handleTileFallback);
+
+  function handleTileFallback() {
     if (imageryHasFallbackTiles) return;
     imageryHasFallbackTiles = true;
     renderImageryLabel();
-  });
+  }
+
+  // Swaps in a new imagery URL without ever showing a blank map: the new
+  // tile layer loads in on top of the current one, and only once it has
+  // fully rendered do we remove the old layer. A plain setUrl()/redraw()
+  // tears down all existing tiles immediately and waits for replacements
+  // to load in afterwards, which flashes the whole map blank — this
+  // crossfade avoids that.
+  function swapImageryLayer(urlTemplate) {
+    const oldLayer = satelliteLayer;
+    const newLayer = L.tileLayer.fallback(urlTemplate, IMAGERY_LAYER_OPTIONS);
+    newLayer.on("tilefallback", handleTileFallback);
+    newLayer.once("load", () => {
+      if (map.hasLayer(oldLayer)) map.removeLayer(oldLayer);
+    });
+    newLayer.addTo(map);
+    satelliteLayer = newLayer;
+  }
 
   // ---------------------------------------------------------------------
   // State
@@ -75,9 +96,9 @@
   // Historical satellite imagery (Esri World Imagery Wayback). Each
   // "release" is a full archived capture from some date; we snap every
   // timeline date to whichever release is chronologically closest, then
-  // swap the basemap tile URL in place with setUrl() — that only changes
-  // which pixels the current tiles show, it never touches map center or
-  // zoom, so the continuity guarantee for switching dates still holds.
+  // crossfade the basemap to that release's tiles (see swapImageryLayer
+  // below) — map center/zoom are never touched, so the continuity
+  // guarantee for switching dates still holds.
   // ---------------------------------------------------------------------
   const WAYBACK_CONFIG_URL =
     "https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json";
@@ -129,6 +150,7 @@
   }
 
   let currentRelease = null;
+  let currentUrlTemplate = CURRENT_IMAGERY_URL;
 
   function renderImageryLabel() {
     if (!currentRelease) {
@@ -159,7 +181,10 @@
       return;
     }
 
-    satelliteLayer.setUrl(release.urlTemplate);
+    if (release.urlTemplate !== currentUrlTemplate) {
+      currentUrlTemplate = release.urlTemplate;
+      swapImageryLayer(release.urlTemplate);
+    }
     renderImageryLabel();
   }
 
