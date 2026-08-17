@@ -38,7 +38,7 @@
     <div id="date-list" class="date-list"></div>
 
     <div class="add-date-row">
-      <input id="new-date" type="date" />
+      <input id="new-date" type="month" />
       <button id="add-date-btn" class="btn small">Add date</button>
     </div>
 
@@ -85,6 +85,17 @@
         Attached to a cemetery
       </label>
     </div>
+
+    <div class="field modal-field">
+      <label for="modal-description">Description <span class="required">(required)</span></label>
+      <textarea id="modal-description" rows="3" placeholder="Describe this site and cite your source(s)&hellip;" required></textarea>
+    </div>
+
+    <div class="field modal-field">
+      <label for="modal-signature">Signature <span class="required">(required)</span></label>
+      <input id="modal-signature" type="text" placeholder="Name of the person submitting this item" required />
+    </div>
+
     <div class="modal-actions">
       <button id="modal-cancel-btn" class="btn ghost">Cancel</button>
       <button id="modal-confirm-btn" class="btn primary">Confirm &amp; submit</button>

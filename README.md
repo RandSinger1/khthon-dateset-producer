@@ -11,12 +11,12 @@ step) so it can be hosted directly on GitHub Pages.
 
 - Satellite basemap (Esri World Imagery), click to place polygon vertices.
 - Right-click a vertex to delete it; undo/clear controls for the active date.
-- Timeline: add any number of dates per item, each with its own polygon.
-  Picking a date in the calendar immediately previews imagery from that time
-  (via [Esri World Imagery Wayback](https://livingatlas.arcgis.com/wayback/),
+- Timeline: add any number of month-precision dates per item, each with its
+  own polygon. Picking a month in the calendar immediately previews imagery
+  from that time (via [Esri World Imagery Wayback](https://livingatlas.arcgis.com/wayback/),
   snapped to the nearest available historical capture) — even before you
   click "Add date" — so you can browse across time without committing a
-  timeline entry for every date you look at. Once added, switching between
+  timeline entry for every month you look at. Once added, switching between
   dates on the slider or chip list shows each one's own polygon the same
   way. Through all of this **the map's pan/zoom never changes**, so you
   stay oriented as you move through time, and the sidebar always shows
@@ -27,8 +27,12 @@ step) so it can be hosted directly on GitHub Pages.
   almost any separator (comma, space, slash, semicolon). E.g. `40.71,
   -74.01`, `40°42'47"N 74°0'22"W`, or `N 33.87, E 151.21` all work.
 - On submit, you're asked whether the grave is **clandestine** or
-  **attached to a cemetery** — this is saved into each shapefile's
-  attribute table and into a `metadata.json` bundled alongside it.
+  **attached to a cemetery**, and required to provide a **description**
+  (with a citation for your source) and a **signature** identifying who is
+  submitting the item. Grave type is saved into each shapefile's attribute
+  table; all four plus a best-effort **nearest city** (reverse-geocoded
+  from the polygons' centroid via OpenStreetMap Nominatim) go into a
+  `metadata.json` bundled alongside it.
 - Submitting generates real `.shp`/`.shx`/`.dbf`/`.prj` files (WGS84,
   EPSG:4326) in the browser via `@mapbox/shp-write`, one shapefile per
   date, zipped together with `JSZip` and downloaded straight to your
@@ -68,11 +72,12 @@ domain root or under a `/<repo>/` subpath.
 Each submission downloads a zip named `<item-slug>_<timestamp>.zip`
 containing:
 
-- `<date>.shp` / `.shx` / `.dbf` / `.prj` — one shapefile per date, WGS84
+- `<date>.shp` / `.shx` / `.dbf` / `.prj` — one shapefile per month, WGS84
   (EPSG:4326), attributes: `item`, `date`, `grave_type`, `created_at`,
   `img_date` (the actual Wayback capture date the polygon was drawn against).
-- `metadata.json` — item name, grave type, creation time, and each date
-  paired with its matched imagery capture date.
+- `metadata.json` — item name, grave type, description (with citation),
+  signature, creation time, best-effort nearest city, and each date paired
+  with its matched imagery capture date.
 
 ## Historical imagery notes
 

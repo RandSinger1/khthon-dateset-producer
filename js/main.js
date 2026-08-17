@@ -80,6 +80,8 @@
     modalBackdrop: document.getElementById("modal-backdrop"),
     modalCancel: document.getElementById("modal-cancel-btn"),
     modalConfirm: document.getElementById("modal-confirm-btn"),
+    modalDescription: document.getElementById("modal-description"),
+    modalSignature: document.getElementById("modal-signature"),
   };
 
   let statusTimer = null;
@@ -129,9 +131,15 @@
     return releases;
   }
 
+  // Timeline dates are month-precision ("YYYY-MM"); anchor to the 1st of
+  // the month when comparing against Wayback releases' full dates.
+  function monthStringToDate(monthStr) {
+    return new Date(monthStr + "-01T00:00:00Z");
+  }
+
   function nearestRelease(dateStr) {
     if (!waybackReleases.length) return null;
-    const target = new Date(dateStr + "T00:00:00Z").getTime();
+    const target = monthStringToDate(dateStr).getTime();
     let best = waybackReleases[0];
     let bestDiff = Math.abs(best.date.getTime() - target);
     for (const release of waybackReleases) {
@@ -151,7 +159,7 @@
 
   let currentRelease = null;
   let currentUrlTemplate = CURRENT_IMAGERY_URL;
-  // Raw "YYYY-MM-DD" from the date picker while its value is being changed
+  // Raw "YYYY-MM" from the date picker while its value is being changed
   // but hasn't been committed via "Add date" yet — lets the calendar drive
   // a live imagery preview before a timeline entry exists for it.
   let previewDate = null;
@@ -403,11 +411,11 @@
   dom.addDateBtn.addEventListener("click", () => {
     const value = dom.newDate.value;
     if (!value) {
-      showStatus("Pick a date first.", "error");
+      showStatus("Pick a month first.", "error");
       return;
     }
     if (dates.some((d) => d.date === value)) {
-      showStatus("That date is already on the timeline.", "error");
+      showStatus("That month is already on the timeline.", "error");
       return;
     }
     const entry = { date: value, vertices: [], group: L.layerGroup(), imageryRelease: null };
@@ -584,7 +592,49 @@
     });
   }
 
-  async function buildSubmissionZip(itemName, graveType, entries, createdAt) {
+  // ---------------------------------------------------------------------
+  // Nearest-city lookup — best effort. Uses the centroid of every vertex
+  // across all dates (a grave's outline should stay roughly in place over
+  // time, so this is a stable single point) and reverse-geocodes it via
+  // OpenStreetMap Nominatim. Never blocks submission on failure.
+  // ---------------------------------------------------------------------
+  function computeCentroid(entries) {
+    let sumLat = 0;
+    let sumLng = 0;
+    let count = 0;
+    entries.forEach((entry) => {
+      entry.vertices.forEach(([lat, lng]) => {
+        sumLat += lat;
+        sumLng += lng;
+        count++;
+      });
+    });
+    if (count === 0) return null;
+    return { lat: sumLat / count, lng: sumLng / count };
+  }
+
+  async function fetchNearestCity(lat, lng) {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`;
+      const resp = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const addr = data.address || {};
+      return (
+        addr.city ||
+        addr.town ||
+        addr.village ||
+        addr.hamlet ||
+        addr.municipality ||
+        addr.county ||
+        null
+      );
+    } catch (err) {
+      return null;
+    }
+  }
+
+  async function buildSubmissionZip(itemName, graveType, description, signature, entries, createdAt) {
     const zip = new JSZip();
 
     for (const entry of entries) {
@@ -604,10 +654,16 @@
       zip.file(`${safeDate}.prj`, files.prj);
     }
 
+    const centroid = computeCentroid(entries);
+    const nearestCity = centroid ? await fetchNearestCity(centroid.lat, centroid.lng) : null;
+
     const metadata = {
       item_name: itemName,
       grave_type: graveType,
+      description: description,
+      signature: signature,
       created_at: createdAt,
+      nearest_city: nearestCity,
       dates: entries.map((e) => ({ date: e.date, imagery_date: e.imageryDate || null })),
     };
     zip.file("metadata.json", JSON.stringify(metadata, null, 2));
@@ -657,6 +713,19 @@
 
   dom.modalConfirm.addEventListener("click", async () => {
     const graveType = document.querySelector('input[name="grave-type"]:checked').value;
+    const description = dom.modalDescription.value.trim();
+    const signature = dom.modalSignature.value.trim();
+    if (!description) {
+      showStatus("Add a description (with citation) before submitting.", "error");
+      dom.modalDescription.focus();
+      return;
+    }
+    if (!signature) {
+      showStatus("Sign before submitting.", "error");
+      dom.modalSignature.focus();
+      return;
+    }
+
     const itemName = dom.itemName.value.trim();
     const entries = dates.map((d) => ({
       date: d.date,
@@ -667,7 +736,7 @@
 
     dom.modalConfirm.disabled = true;
     try {
-      const blob = await buildSubmissionZip(itemName, graveType, entries, createdAt);
+      const blob = await buildSubmissionZip(itemName, graveType, description, signature, entries, createdAt);
       const slug = slugify(itemName);
       const stamp = createdAt.replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
       const filename = `${slug}_${stamp}.zip`;
@@ -682,6 +751,7 @@
       });
 
       dom.modalBackdrop.classList.add("hidden");
+      dom.modalDescription.value = "";
       showStatus(`Downloaded ${entries.length} shapefile(s) as ${filename}`, "success");
       resetWorkspace();
       renderPreviousItems();
