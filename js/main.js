@@ -379,27 +379,89 @@
   // ---------------------------------------------------------------------
   // Search coordinates — explicit navigation, so moving the view here is
   // expected (unlike switching between timeline dates).
+  //
+  // Accepts decimal degrees, degrees-decimal-minutes, and full DMS, with
+  // N/S/E/W as either a prefix or suffix on either value, any of the usual
+  // degree/minute/second symbols (°, ′, ', ″, ", ''), and pretty much any
+  // separator between the two values (comma, space, slash, semicolon...).
+  // A single regex pass pulls out up to two "coordinate tokens"; each is
+  // converted to signed decimal degrees, then assigned to lat/lon using
+  // hemisphere letters when present, falling back to input order.
   // ---------------------------------------------------------------------
+  const COORD_COMPONENT_RE =
+    /([NSEW])?\s*(-?\d{1,3}(?:\.\d+)?)\s*[°º]?\s*(?:(\d{1,2}(?:\.\d+)?)\s*[′']?\s*(?:(\d{1,2}(?:\.\d+)?)\s*(?:″|"|'')?)?)?\s*([NSEW])?(?!\d)/gi;
+
+  function parseCoordinatePair(raw) {
+    const text = raw.trim();
+    if (!text) return null;
+
+    const tokens = [];
+    let match;
+    COORD_COMPONENT_RE.lastIndex = 0;
+    while ((match = COORD_COMPONENT_RE.exec(text)) !== null) {
+      const deg = parseFloat(match[2]);
+      if (Number.isNaN(deg)) continue;
+      const min = match[3] ? parseFloat(match[3]) : 0;
+      const sec = match[4] ? parseFloat(match[4]) : 0;
+      const hemi = (match[1] || match[5] || "").toUpperCase();
+
+      let value = Math.abs(deg) + min / 60 + sec / 3600;
+      if (deg < 0) value = -value;
+      if (hemi === "S" || hemi === "W") value = -Math.abs(value);
+      else if (hemi === "N" || hemi === "E") value = Math.abs(value);
+
+      let axis = null;
+      if (hemi === "N" || hemi === "S") axis = "lat";
+      else if (hemi === "E" || hemi === "W") axis = "lon";
+
+      tokens.push({ value, axis });
+    }
+
+    if (tokens.length !== 2) return null;
+    const [a, b] = tokens;
+
+    let lat, lon;
+    if (a.axis === "lat" && b.axis === "lon") {
+      lat = a.value;
+      lon = b.value;
+    } else if (a.axis === "lon" && b.axis === "lat") {
+      lat = b.value;
+      lon = a.value;
+    } else {
+      // No usable hemisphere hints — assume input order is lat, lon.
+      lat = a.value;
+      lon = b.value;
+    }
+
+    // Recover from an accidental lat/lon swap (only possible to detect
+    // when the out-of-range value would fit the other slot).
+    if ((lat < -90 || lat > 90) && lon >= -90 && lon <= 90 && lat >= -180 && lat <= 180) {
+      [lat, lon] = [lon, lat];
+    }
+
+    if (Number.isNaN(lat) || Number.isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      return null;
+    }
+    return { lat, lon };
+  }
+
   dom.coordSearchBtn.addEventListener("click", goToCoords);
   dom.coordSearch.addEventListener("keydown", (e) => {
     if (e.key === "Enter") goToCoords();
   });
 
   function goToCoords() {
-    const raw = dom.coordSearch.value.trim();
-    const match = raw.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/);
-    if (!match) {
-      showStatus("Enter coordinates as 'lat, lng'.", "error");
+    const raw = dom.coordSearch.value;
+    const parsed = parseCoordinatePair(raw);
+    if (!parsed) {
+      showStatus(
+        "Couldn't read those coordinates. Try '40.71, -74.01' or '40°42'47\"N 74°0'22\"W'.",
+        "error"
+      );
       return;
     }
-    const lat = parseFloat(match[1]);
-    const lng = parseFloat(match[2]);
-    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      showStatus("Coordinates out of range.", "error");
-      return;
-    }
-    map.flyTo([lat, lng], Math.max(map.getZoom(), 17));
-    showStatus(`Jumped to ${lat.toFixed(5)}, ${lng.toFixed(5)}`, "success");
+    map.flyTo([parsed.lat, parsed.lon], Math.max(map.getZoom(), 17));
+    showStatus(`Jumped to ${parsed.lat.toFixed(5)}, ${parsed.lon.toFixed(5)}`, "success");
   }
 
   // ---------------------------------------------------------------------

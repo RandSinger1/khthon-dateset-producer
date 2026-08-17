@@ -18,7 +18,11 @@ step) so it can be hosted directly on GitHub Pages.
   date's polygon — but **the map's pan/zoom never changes**, so you stay
   oriented as you move through time. The sidebar always shows which actual
   capture date you're looking at.
-- Coordinate search box ("lat, lng") to jump straight to a location.
+- Coordinate search box to jump straight to a location — accepts decimal
+  degrees, degrees-decimal-minutes, or full DMS, with N/S/E/W as a prefix
+  or suffix on either value, common degree/minute/second symbols, and
+  almost any separator (comma, space, slash, semicolon). E.g. `40.71,
+  -74.01`, `40°42'47"N 74°0'22"W`, or `N 33.87, E 151.21` all work.
 - On submit, you're asked whether the grave is **clandestine** or
   **attached to a cemetery** — this is saved into each shapefile's
   attribute table and into a `metadata.json` bundled alongside it.
