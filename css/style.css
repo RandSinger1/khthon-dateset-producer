@@ -300,8 +300,9 @@ textarea:focus {
   z-index: 2000;
   background: rgba(0, 0, 0, 0.55);
   display: flex;
-  align-items: center;
   justify-content: center;
+  padding: 24px;
+  overflow-y: auto;
 }
 
 .modal-backdrop.hidden { display: none; }
@@ -313,6 +314,13 @@ textarea:focus {
   padding: 22px 24px;
   width: 360px;
   max-width: 90vw;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  /* Auto top/bottom margins center the modal when it fits; once it's
+     taller than the viewport they collapse to 0 and the backdrop's own
+     overflow-y:auto (not align-items:center, which can't be scrolled past)
+     is what lets you reach the clipped top/bottom instead of losing it. */
+  margin: auto 0;
 }
 
 .modal h2 { margin: 0 0 8px; font-size: 17px; }
