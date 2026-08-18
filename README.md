@@ -43,6 +43,17 @@ step) so it can be hosted directly on GitHub Pages.
 - The sidebar remembers previously submitted items on this device
   (`localStorage`) as a quick reference; the underlying data lives in each
   downloaded zip, not on any server.
+- **Review mode**: click **Review zip…** and pick a previously downloaded
+  submission zip to load it back into the workspace for editing. The zip is
+  validated first (a real zip, a parseable `metadata.json`, and a matching,
+  readable shapefile for every date it lists) before anything is loaded, so
+  a corrupt or unrelated file is rejected with a specific error instead of
+  loading partial data. Vertices are recovered by parsing the real `.shp`
+  binary rather than trusting a separate coordinate list, since the
+  shapefile is the authoritative record. Item name, grave type, description,
+  and signature are pre-filled from the zip's `metadata.json` — edit
+  anything (vertices, dates, or the classification fields) and click
+  **Submit** to download an updated zip the same way as any other item.
 
 ## Usage guide
 

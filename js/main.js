@@ -77,6 +77,8 @@
     undoBtn: document.getElementById("undo-vertex-btn"),
     clearBtn: document.getElementById("clear-vertices-btn"),
     itemsList: document.getElementById("items-list"),
+    reviewBtn: document.getElementById("review-btn"),
+    reviewInput: document.getElementById("review-input"),
     status: document.getElementById("status"),
     modalBackdrop: document.getElementById("modal-backdrop"),
     modalCancel: document.getElementById("modal-cancel-btn"),
@@ -625,6 +627,167 @@
     refreshVertexUI();
     refreshDateChips();
   }
+
+  // ---------------------------------------------------------------------
+  // Review mode — load a previously-downloaded submission zip back into
+  // the workspace so its grave can be edited. Vertices are recovered by
+  // parsing the real .shp binary (a single-ring POLYGON record, per
+  // writeDateShapefile below) rather than trusting a separate copy of the
+  // coordinates, since the shapefile itself is the authoritative record.
+  // Everything else — item name, grave type, description, signature —
+  // comes straight from metadata.json and pre-fills the same fields the
+  // submit flow reads from, so re-submitting only requires touching
+  // whatever actually needs to change.
+  // ---------------------------------------------------------------------
+  function readPolygonVertices(buffer) {
+    const view = new DataView(buffer);
+    if (buffer.byteLength < 108) throw new Error("file is too short to be a shapefile");
+    if (view.getInt32(32, true) !== 5) throw new Error("not a POLYGON shapefile");
+
+    let offset = 100 + 8; // 100-byte file header + 8-byte record header
+    if (view.getInt32(offset, true) !== 5) throw new Error("unexpected shape type in record");
+    offset += 4 + 32; // record shape type + bounding box
+    const numParts = view.getInt32(offset, true);
+    offset += 4;
+    const numPoints = view.getInt32(offset, true);
+    offset += 4;
+    offset += numParts * 4; // parts array — writeDateShapefile always writes one ring
+
+    const points = [];
+    for (let i = 0; i < numPoints; i++) {
+      if (offset + 16 > buffer.byteLength) throw new Error("truncated point data");
+      const x = view.getFloat64(offset, true);
+      const y = view.getFloat64(offset + 8, true);
+      offset += 16;
+      points.push([y, x]); // toClosedRingXY wrote [lng, lat] — flip back to [lat, lng]
+    }
+    // toClosedRingXY closes the ring (first vertex repeated at the end) —
+    // drop that repeat so this matches the open-ring shape entries use
+    // while vertices are being clicked in.
+    if (points.length > 1) {
+      const [firstLat, firstLng] = points[0];
+      const [lastLat, lastLng] = points[points.length - 1];
+      if (firstLat === lastLat && firstLng === lastLng) points.pop();
+    }
+    return points;
+  }
+
+  function validateReviewMetadata(metadata) {
+    if (!metadata || typeof metadata !== "object") {
+      return "metadata.json is missing or malformed.";
+    }
+    if (!metadata.item_name || typeof metadata.item_name !== "string") {
+      return "metadata.json has no item_name.";
+    }
+    if (metadata.grave_type !== "clandestine" && metadata.grave_type !== "cemetery") {
+      return "metadata.json has an invalid grave_type.";
+    }
+    if (typeof metadata.description !== "string" || !metadata.description.trim()) {
+      return "metadata.json has no description.";
+    }
+    if (typeof metadata.signature !== "string" || !metadata.signature.trim()) {
+      return "metadata.json has no signature.";
+    }
+    if (!Array.isArray(metadata.dates) || metadata.dates.length === 0) {
+      return "metadata.json lists no dates.";
+    }
+    for (const d of metadata.dates) {
+      if (!d || typeof d.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(d.date)) {
+        return "metadata.json has a malformed date entry.";
+      }
+    }
+    return null;
+  }
+
+  async function loadReviewZip(file) {
+    let zip;
+    try {
+      zip = await JSZip.loadAsync(file);
+    } catch (err) {
+      throw new Error("That file isn't a valid zip archive.");
+    }
+
+    const metaFile = zip.file("metadata.json");
+    if (!metaFile) throw new Error("Zip has no metadata.json — not a Khthon submission.");
+
+    let metadata;
+    try {
+      metadata = JSON.parse(await metaFile.async("string"));
+    } catch (err) {
+      throw new Error("metadata.json isn't valid JSON.");
+    }
+
+    const metaError = validateReviewMetadata(metadata);
+    if (metaError) throw new Error(metaError);
+
+    const entries = [];
+    for (const d of metadata.dates) {
+      const shpFile = zip.file(`${d.date}.shp`);
+      if (!shpFile) throw new Error(`Missing ${d.date}.shp for a date listed in metadata.json.`);
+      const buffer = await shpFile.async("arraybuffer");
+      let vertices;
+      try {
+        vertices = readPolygonVertices(buffer);
+      } catch (err) {
+        throw new Error(`Couldn't read ${d.date}.shp (${err.message}).`);
+      }
+      if (vertices.length < 3) {
+        throw new Error(`${d.date}.shp has fewer than 3 vertices.`);
+      }
+      entries.push({ date: d.date, vertices, group: L.layerGroup(), imageryRelease: null });
+    }
+
+    return { metadata, entries };
+  }
+
+  dom.reviewBtn.addEventListener("click", () => dom.reviewInput.click());
+
+  dom.reviewInput.addEventListener("change", async () => {
+    const file = dom.reviewInput.files[0];
+    dom.reviewInput.value = ""; // let the same file be re-picked later if needed
+    if (!file) return;
+
+    const hasWork = dates.some((d) => d.vertices.length > 0) || dom.itemName.value.trim();
+    if (hasWork && !window.confirm("Discard the current item and load this zip for review?")) {
+      return;
+    }
+
+    let loaded;
+    try {
+      loaded = await loadReviewZip(file);
+    } catch (err) {
+      showStatus(err.message || "Could not read that zip.", "error");
+      return;
+    }
+
+    resetWorkspace();
+    const { metadata, entries } = loaded;
+
+    entries.forEach((entry) => {
+      assignImageryRelease(entry);
+      rebuildLayer(entry);
+      dates.push(entry);
+    });
+    dates.sort((a, b) => a.date.localeCompare(b.date));
+
+    dom.itemName.value = metadata.item_name;
+    const radio = document.querySelector(`input[name="grave-type"][value="${metadata.grave_type}"]`);
+    if (radio) radio.checked = true;
+    dom.modalDescription.value = metadata.description;
+    dom.modalSignature.value = metadata.signature;
+
+    dom.slider.max = String(Math.max(dates.length - 1, 0));
+    dom.sliderRow.style.display = dates.length > 1 ? "flex" : "none";
+    populateDateOptions();
+    selectDate(dates.length - 1);
+
+    const allVertices = entries.reduce((acc, e) => acc.concat(e.vertices), []);
+    if (allVertices.length) {
+      map.fitBounds(L.latLngBounds(allVertices), { padding: [40, 40], maxZoom: 18 });
+    }
+
+    showStatus(`Loaded "${metadata.item_name}" for review — edit as needed, then Submit.`, "success");
+  });
 
   // ---------------------------------------------------------------------
   // Shapefile generation, entirely client-side (github.io has no server).
