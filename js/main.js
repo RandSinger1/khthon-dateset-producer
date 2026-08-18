@@ -672,6 +672,11 @@
     return points;
   }
 
+  // Only checks what's needed to safely load the zip into the workspace —
+  // item name and a shapefile-backed date list. grave_type/description/
+  // signature are deliberately NOT required here: fixing up a submission
+  // that's missing one of those is exactly what review mode is for, so
+  // rejecting it for being incomplete would defeat the point.
   function validateReviewMetadata(metadata) {
     if (!metadata || typeof metadata !== "object") {
       return "metadata.json is missing or malformed.";
@@ -679,21 +684,12 @@
     if (!metadata.item_name || typeof metadata.item_name !== "string") {
       return "metadata.json has no item_name.";
     }
-    if (metadata.grave_type !== "clandestine" && metadata.grave_type !== "cemetery") {
-      return "metadata.json has an invalid grave_type.";
-    }
-    if (typeof metadata.description !== "string" || !metadata.description.trim()) {
-      return "metadata.json has no description.";
-    }
-    if (typeof metadata.signature !== "string" || !metadata.signature.trim()) {
-      return "metadata.json has no signature.";
-    }
     if (!Array.isArray(metadata.dates) || metadata.dates.length === 0) {
       return "metadata.json lists no dates.";
     }
     for (const d of metadata.dates) {
-      if (!d || typeof d.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(d.date)) {
-        return "metadata.json has a malformed date entry.";
+      if (!d || typeof d.date !== "string" || !d.date) {
+        return "metadata.json has a date entry with no date.";
       }
     }
     return null;
@@ -722,8 +718,11 @@
 
     const entries = [];
     for (const d of metadata.dates) {
-      const shpFile = zip.file(`${d.date}.shp`);
-      if (!shpFile) throw new Error(`Missing ${d.date}.shp for a date listed in metadata.json.`);
+      // Same sanitization writeDateShapefile's caller applies to the date
+      // when naming the file, so lookup matches regardless of date format.
+      const safeDate = d.date.replace(/[^0-9A-Za-z_-]/g, "-");
+      const shpFile = zip.file(`${safeDate}.shp`);
+      if (!shpFile) throw new Error(`Missing ${safeDate}.shp for a date listed in metadata.json.`);
       const buffer = await shpFile.async("arraybuffer");
       let vertices;
       try {
@@ -771,10 +770,11 @@
     dates.sort((a, b) => a.date.localeCompare(b.date));
 
     dom.itemName.value = metadata.item_name;
-    const radio = document.querySelector(`input[name="grave-type"][value="${metadata.grave_type}"]`);
-    if (radio) radio.checked = true;
-    dom.modalDescription.value = metadata.description;
-    dom.modalSignature.value = metadata.signature;
+    if (metadata.grave_type === "clandestine" || metadata.grave_type === "cemetery") {
+      document.querySelector(`input[name="grave-type"][value="${metadata.grave_type}"]`).checked = true;
+    }
+    dom.modalDescription.value = typeof metadata.description === "string" ? metadata.description : "";
+    dom.modalSignature.value = typeof metadata.signature === "string" ? metadata.signature : "";
 
     dom.slider.max = String(Math.max(dates.length - 1, 0));
     dom.sliderRow.style.display = dates.length > 1 ? "flex" : "none";
