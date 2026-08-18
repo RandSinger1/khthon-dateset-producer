@@ -353,6 +353,17 @@ textarea:focus {
   background: rgba(255, 255, 255, 0.04);
 }
 
+/* Without an explicit size, a radio's flex-basis:auto can resolve to a much
+   wider box than the dot actually painted inside it — the dot ends up
+   looking off-center and the label text far away from it. Pin the box to
+   the dot's own size so it sits snugly against the label. */
+.radio-option input[type="radio"] {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
 .radio-option:hover { background: rgba(255, 255, 255, 0.08); }
 
 .modal-field { margin-bottom: 16px; }
