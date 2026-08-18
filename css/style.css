@@ -318,11 +318,18 @@ textarea:focus {
 .modal h2 { margin: 0 0 8px; font-size: 17px; }
 .modal p { margin: 0 0 16px; font-size: 13px; color: var(--muted); line-height: 1.4; }
 
+.modal-section-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
 .modal-options {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 20px;
 }
 
 .radio-option {
@@ -330,6 +337,8 @@ textarea:focus {
   align-items: center;
   gap: 8px;
   font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   cursor: pointer;
   padding: 8px 10px;
   border-radius: 6px;

@@ -80,16 +80,45 @@
 <div id="modal-backdrop" class="modal-backdrop hidden">
   <div class="modal">
     <h2>Grave classification</h2>
-    <p>Is this grave clandestine, or attached to a recognized cemetery?</p>
-    <div class="modal-options">
-      <label class="radio-option">
-        <input type="radio" name="grave-type" value="clandestine" checked />
-        Clandestine
-      </label>
-      <label class="radio-option">
-        <input type="radio" name="grave-type" value="cemetery" />
-        Attached to a cemetery
-      </label>
+
+    <div class="modal-field">
+      <div class="modal-section-label">Type</div>
+      <div class="modal-options">
+        <label class="radio-option">
+          <input type="radio" name="grave-type" value="clandestine" checked />
+          Clandestine
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="grave-type" value="informal" />
+          Informal
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="grave-type" value="formal" />
+          Formal
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="grave-type" value="unsure" />
+          Unsure
+        </label>
+      </div>
+    </div>
+
+    <div class="modal-field">
+      <div class="modal-section-label">Attached to a cemetery?</div>
+      <div class="modal-options">
+        <label class="radio-option">
+          <input type="radio" name="cemetery" value="yes" checked />
+          Yes
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="cemetery" value="no" />
+          No
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="cemetery" value="unsure" />
+          Unsure
+        </label>
+      </div>
     </div>
 
     <div class="field modal-field">

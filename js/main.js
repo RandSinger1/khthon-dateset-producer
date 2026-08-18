@@ -770,8 +770,11 @@
     dates.sort((a, b) => a.date.localeCompare(b.date));
 
     dom.itemName.value = metadata.item_name;
-    if (metadata.grave_type === "clandestine" || metadata.grave_type === "cemetery") {
+    if (["clandestine", "informal", "formal", "unsure"].includes(metadata.grave_type)) {
       document.querySelector(`input[name="grave-type"][value="${metadata.grave_type}"]`).checked = true;
+    }
+    if (["yes", "no", "unsure"].includes(metadata.cemetery)) {
+      document.querySelector(`input[name="cemetery"][value="${metadata.cemetery}"]`).checked = true;
     }
     dom.modalDescription.value = typeof metadata.description === "string" ? metadata.description : "";
     dom.modalSignature.value = typeof metadata.signature === "string" ? metadata.signature : "";
@@ -875,7 +878,7 @@
     }
   }
 
-  async function buildSubmissionZip(itemName, graveType, description, signature, entries, createdAt) {
+  async function buildSubmissionZip(itemName, graveType, cemetery, description, signature, entries, createdAt) {
     const zip = new JSZip();
 
     for (const entry of entries) {
@@ -884,6 +887,7 @@
         item: itemName,
         date: entry.date,
         grave_type: graveType,
+        cemetery: cemetery,
         created_at: createdAt,
         img_date: entry.imageryDate || "",
       };
@@ -901,6 +905,7 @@
     const metadata = {
       item_name: itemName,
       grave_type: graveType,
+      cemetery: cemetery,
       description: description,
       signature: signature,
       created_at: createdAt,
@@ -954,6 +959,7 @@
 
   dom.modalConfirm.addEventListener("click", async () => {
     const graveType = document.querySelector('input[name="grave-type"]:checked').value;
+    const cemetery = document.querySelector('input[name="cemetery"]:checked').value;
     const description = dom.modalDescription.value.trim();
     const signature = dom.modalSignature.value.trim();
     if (!description) {
@@ -977,7 +983,7 @@
 
     dom.modalConfirm.disabled = true;
     try {
-      const blob = await buildSubmissionZip(itemName, graveType, description, signature, entries, createdAt);
+      const blob = await buildSubmissionZip(itemName, graveType, cemetery, description, signature, entries, createdAt);
       const slug = slugify(itemName);
       const stamp = createdAt.replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
       const filename = `${slug}_${stamp}.zip`;
@@ -986,6 +992,7 @@
       saveItemToStorage({
         item_name: itemName,
         grave_type: graveType,
+        cemetery: cemetery,
         created_at: createdAt,
         dates: entries.map((e) => e.date),
         filename,
@@ -1035,9 +1042,10 @@
       const row = document.createElement("div");
       row.className = "item-entry";
       const created = new Date(item.created_at);
+      const cemeteryNote = item.cemetery ? ` &middot; cemetery: ${escapeHtml(item.cemetery)}` : "";
       row.innerHTML = `
         <div class="name">${escapeHtml(item.item_name)}</div>
-        <div class="meta">${item.grave_type} &middot; ${item.dates.length} date(s) &middot; ${created.toLocaleDateString()}</div>
+        <div class="meta">${escapeHtml(item.grave_type)}${cemeteryNote} &middot; ${item.dates.length} date(s) &middot; ${created.toLocaleDateString()}</div>
       `;
       dom.itemsList.appendChild(row);
     });

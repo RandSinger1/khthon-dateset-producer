@@ -29,13 +29,14 @@ step) so it can be hosted directly on GitHub Pages.
   or suffix on either value, common degree/minute/second symbols, and
   almost any separator (comma, space, slash, semicolon). E.g. `40.71,
   -74.01`, `40°42'47"N 74°0'22"W`, or `N 33.87, E 151.21` all work.
-- On submit, you're asked whether the grave is **clandestine** or
-  **attached to a cemetery**, and required to provide a **description**
-  (with a citation for your source) and a **signature** identifying who is
-  submitting the item. Grave type is saved into each shapefile's attribute
-  table; all four plus a best-effort **nearest city** (reverse-geocoded
-  from the polygons' centroid via OpenStreetMap Nominatim) go into a
-  `metadata.json` bundled alongside it.
+- On submit, you're asked to classify the grave in two separate questions —
+  **Type** (clandestine, informal, formal, or unsure) and **Attached to a
+  cemetery?** (yes, no, or unsure) — and required to provide a
+  **description** (with a citation for your source) and a **signature**
+  identifying who is submitting the item. Both classification answers are
+  saved into each shapefile's attribute table; all five plus a best-effort
+  **nearest city** (reverse-geocoded from the polygons' centroid via
+  OpenStreetMap Nominatim) go into a `metadata.json` bundled alongside it.
 - Submitting generates real `.shp`/`.shx`/`.dbf`/`.prj` files (WGS84,
   EPSG:4326) in the browser via `@mapbox/shp-write`, one shapefile per
   date, zipped together with `JSZip` and downloaded straight to your
@@ -50,8 +51,9 @@ step) so it can be hosted directly on GitHub Pages.
   a corrupt or unrelated file is rejected with a specific error instead of
   loading partial data. Vertices are recovered by parsing the real `.shp`
   binary rather than trusting a separate coordinate list, since the
-  shapefile is the authoritative record. Item name, grave type, description,
-  and signature are pre-filled from the zip's `metadata.json` — edit
+  shapefile is the authoritative record. Item name, both classification
+  answers, description, and signature are pre-filled from the zip's
+  `metadata.json` — edit
   anything (vertices, dates, or the classification fields) and click
   **Submit** to download an updated zip the same way as any other item.
 
@@ -153,8 +155,10 @@ Click **Submit** once every date on the timeline has at least 3 vertices
 (you'll get an inline error naming any date that doesn't). This opens the
 classification dialog:
 
-- **Grave classification** — whether the site is **clandestine** or
-  **attached to a recognized cemetery**.
+- **Type** — clandestine, informal, formal, or unsure.
+- **Attached to a cemetery?** — yes, no, or unsure. A separate question from
+  **Type**, since a grave's type and whether it sits within a recognized
+  cemetery are independent facts.
 - **Description** *(required)* — a free-text description of the site that
   must include a citation for your source(s) (field notes, imagery
   analysis, a registry record, news reporting, etc.).
@@ -224,11 +228,13 @@ Each submission downloads a zip named `<item-slug>_<timestamp>.zip`
 containing:
 
 - `<date>.shp` / `.shx` / `.dbf` / `.prj` — one shapefile per date, WGS84
-  (EPSG:4326), attributes: `item`, `date`, `grave_type`, `created_at`,
-  `img_date` (the Wayback capture date the polygon was drawn against — the
-  same as `date` for any entry added from the imagery-dates dropdown).
-- `metadata.json` — item name, grave type, description (with citation),
-  signature, creation time, best-effort nearest city, and each date paired
+  (EPSG:4326), attributes: `item`, `date`, `grave_type`, `cemetery`,
+  `created_at`, `img_date` (the Wayback capture date the polygon was drawn
+  against — the same as `date` for any entry added from the imagery-dates
+  dropdown).
+- `metadata.json` — item name, grave type, cemetery attachment, description
+  (with citation), signature, creation time, best-effort nearest city, and
+  each date paired
   with its matched imagery capture date.
 
 ## Historical imagery notes
